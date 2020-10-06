@@ -7,157 +7,146 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+/** Main controller class to manage the page */
 class Cryptify {
-    constructor() {
-    }
-    static get ALGORITHM_PARAMS() { return { name: "AES-CTR", counter: crypto.getRandomValues(new Uint8Array(16)), length: 128 }; }
-    static encryptFile(saveKeyfile = false) {
-        return __awaiter(this, void 0, void 0, function* () {
-            let { data, filename, key } = yield this.encryptFile_internal('.ENCRYPTED');
-            yield FileManager.downloadFile(filename + '.ENCRYPTED', data);
-            if (saveKeyfile)
-                yield FileManager.downloadFile(filename + '.KEY', uint8ArrayFromString(key));
-            else
-                document.getElementById("txtKey").value = key;
-        });
-    }
-    static encryptFile_internal(filenameAppendix = null) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                let algorithm = this.ALGORITHM_PARAMS;
-                let { data, filename } = yield FileManager.uploadFile();
-                let key = (yield crypto.subtle.generateKey({ name: algorithm.name, length: algorithm.length }, true, ["encrypt", "decrypt"]));
-                let encrypted_data = yield crypto.subtle.encrypt(algorithm, key, data);
-                let sKey = btoa(stringFromArrayBuffer(yield crypto.subtle.exportKey("raw", key)));
-                sKey += ';' + btoa(stringFromUint8Array(algorithm.counter));
-                if (filenameAppendix)
-                    filename += filenameAppendix;
-                return { data: encrypted_data, filename, key: sKey };
-            }
-            catch (err) {
-                console.error(err);
-            }
-        });
-    }
-    static decryptFile(filename = null, content = null) {
-        return __awaiter(this, void 0, void 0, function* () {
-            let decryption = this.decryptFile_internal(filename, content);
-            content = null;
-            let { filename: fName, data } = yield decryption;
-            yield FileManager.downloadFile(fName, data);
-        });
-    }
-    static decryptFile_internal(filename = null, content = null) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                let algorithm = this.ALGORITHM_PARAMS;
-                let rawKey;
-                let counter;
-                let sRawKey = document.getElementById("txtKey").value;
-                if (sRawKey)
-                    rawKey = uint8ArrayFromString(sRawKey.trim());
-                else {
-                    let { data } = yield FileManager.uploadFile(".KEY");
-                    rawKey = new Uint8Array(data);
-                }
-                let [sKey, sCounter] = stringFromUint8Array(rawKey).split(';');
-                sKey = atob(sKey);
-                sCounter = atob(sCounter);
-                rawKey = uint8ArrayFromString(sKey);
-                counter = uint8ArrayFromString(sCounter);
-                algorithm.counter = counter;
-                if (!content) {
-                    if (filename)
-                        content = yield (yield fetch(filename)).arrayBuffer();
-                    else {
-                        ({ data: content, filename } = yield FileManager.uploadFile(".ENCRYPTED"));
-                    }
-                }
-                else if (!filename) {
-                    filename = "decryptedfile.ENCRYPTED";
-                }
-                let key = yield crypto.subtle.importKey("raw", rawKey, algorithm, true, ["encrypt", "decrypt"]);
-                let decrypted_data = yield crypto.subtle.decrypt(algorithm, key, content);
-                content = null;
-                yield wait();
-                if (filename.includes("ENCRYPTED"))
-                    filename = filename.substr(0, filename.indexOf("ENCRYPTED"));
-                return { filename: filename, data: decrypted_data };
-            }
-            catch (err) {
-                console.log(err);
-            }
-        });
-    }
     static generateSelfDecrypt(saveKeyfile = false) {
         return __awaiter(this, void 0, void 0, function* () {
-            let { filename, content } = yield (() => __awaiter(this, void 0, void 0, function* () {
-                const html = document.createElement("html");
-                const head = document.createElement("head");
-                const body = document.createElement("body");
-                const span = document.createElement("span");
-                const keyLabel = document.createElement("span");
-                keyLabel.textContent = "Encryption key: ";
-                const txtKey = document.createElement("input");
-                txtKey.id = "txtKey";
-                txtKey.type = "text";
-                const btnDecrypt = document.createElement("input");
-                btnDecrypt.type = "button";
-                btnDecrypt.value = "Decrypt file";
-                btnDecrypt.id = "btnDecrypt";
-                let { data, filename, key } = yield this.encryptFile_internal();
-                //(document.getElementById("txtKey") as HTMLInputElement).value = key; <-- for custom keys
-                document.getElementById("txtKey").textContent = key;
-                span.id = "spData";
-                span.dataset["filename"] = filename;
-                span.textContent = btoa(stringFromArrayBuffer(data));
-                data = null;
-                span.style.display = "none";
-                html.appendChild(head);
-                html.appendChild(body);
-                body.appendChild(span);
-                body.appendChild(keyLabel);
-                body.appendChild(txtKey);
-                body.appendChild(btnDecrypt);
-                for (let scr of Array.from(document.getElementsByTagName("script"))) {
-                    let script = document.createElement("script");
-                    script.type = "text/javascript";
-                    script.textContent = yield fetch(scr.src).then(x => x.text());
-                    head.appendChild(script);
-                }
-                let scrip = document.createElement("script");
-                scrip.type = "text/javascript";
-                scrip.textContent = `
-let filename = '${filename}';
-document.getElementById('btnDecrypt').onclick = e => decrypt_clicked()
-
-async function decrypt_clicked() {
-    let spData = document.getElementById('spData');
-    let data = spData.textContent;
-
-    document.body.removeChild(spData);
-    spData = null;
-
-    data = atob(data);
-    data = uint8ArrayFromString(data);
-    
-    await wait();
-
-    Cryptify.decryptFile(filename, data);
-}`;
-                body.appendChild(scrip);
-                return { filename, content: html.outerHTML };
-            }))();
-            let data = uint8ArrayFromString(content);
-            content = null;
             try {
-                yield FileManager.downloadFile(filename + ".encrypted.html", data);
+                let { filename, content } = yield (() => __awaiter(this, void 0, void 0, function* () {
+                    let { html, head, body } = this.createPageWrapper();
+                    let dvSelfDecrypt = document.getElementById("dvSelfDecrypt");
+                    dvSelfDecrypt = dvSelfDecrypt.cloneNode(true);
+                    dvSelfDecrypt.style.display = "";
+                    let spData = dvSelfDecrypt.querySelector("#spData");
+                    let compress = document.getElementById("chkCompress").checked;
+                    let { data, filename } = yield FileManager.uploadFile({ onFileSelect: () => this.updateStatus("Uploading file") });
+                    if (compress) {
+                        yield this.updateStatus("Compressing - optimising for best file size");
+                        data = yield Compression.compress(data, "arraybuffer", { base64: true });
+                    }
+                    yield this.updateStatus("Encrypting");
+                    let { data: encryptedData, key } = yield Encryption.encrypt(data);
+                    yield this.updateStatus("Preparing bundle");
+                    document.getElementById("txtKey").textContent = key;
+                    spData.dataset["filename"] = filename;
+                    spData.dataset["compressed"] = compress.toString();
+                    spData.textContent = btoa(stringFromArrayBuffer(encryptedData));
+                    encryptedData = null;
+                    body.appendChild(dvSelfDecrypt);
+                    let packages = [...yield this.packageScripts(), ...yield this.packageStyles()];
+                    for (let item of packages)
+                        head.appendChild(item);
+                    let scrip = document.createElement("script");
+                    scrip.type = "text/javascript";
+                    scrip.textContent = `document.getElementById('btnDecrypt').onclick = e => Cryptify.selfDecrypt();`;
+                    body.appendChild(scrip);
+                    return { filename, content: html.outerHTML };
+                }))();
+                yield this.updateStatus("Preparing file for download");
+                let data = uint8ArrayFromString(content);
+                content = null;
+                let dvKey = document.getElementById("dvKey");
+                dvKey.style.display = "";
+                try {
+                    yield FileManager.downloadFile(filename + ".encrypted.html", data);
+                }
+                catch (err) {
+                    this.updateStatus("Failed to download content");
+                    console.error(err);
+                }
+                this.updateStatus("");
             }
             catch (err) {
-                console.log("Failed to download content");
+                this.updateStatus("Failed");
+            }
+        });
+    }
+    static selfDecrypt() {
+        return __awaiter(this, void 0, void 0, function* () {
+            let spData = document.getElementById("spData");
+            let filename = spData.dataset["filename"];
+            let compressed = JSON.parse(spData.dataset["compressed"]);
+            let data = spData.textContent;
+            spData.parentElement.removeChild(spData);
+            spData = null;
+            yield this.updateStatus("Unpacking bundle");
+            let bytes = uint8ArrayFromString(atob(data));
+            data = null;
+            yield wait();
+            Cryptify.decryptFile(bytes, compressed, filename);
+        });
+    }
+    static decryptFile(content, compressed, filename = null) {
+        return __awaiter(this, void 0, void 0, function* () {
+            let key = document.getElementById("txtKey").value;
+            yield this.updateStatus("Decrypting data");
+            let decryption = Encryption.decrypt(key, content);
+            content = null;
+            let { data } = yield decryption;
+            if (compressed) {
+                yield this.updateStatus("Decompressing file");
+                data = yield Compression.decompress(data, "arraybuffer", { base64: true });
+            }
+            if (!filename) {
+                filename = this.DEFAULT_DOWNLOAD_FILENAME;
+            }
+            else if (filename.includes("ENCRYPTED"))
+                filename = filename.substr(0, filename.indexOf("ENCRYPTED"));
+            yield this.updateStatus("Downloading file");
+            yield FileManager.downloadFile(filename, data);
+            this.updateStatus("");
+            window.location.reload();
+        });
+    }
+    static copyKeyToClipboard() {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                let key = document.getElementById("txtKey").textContent;
+                yield navigator.clipboard.writeText(key);
+                let status = document.getElementById("copyStatus");
+                status.textContent = "Copied!";
+                yield wait(2000);
+                status.textContent = "";
+            }
+            catch (err) {
                 console.error(err);
             }
+        });
+    }
+    static createPageWrapper() {
+        let html = document.createElement("html");
+        let head = document.createElement("head");
+        let body = document.createElement("body");
+        html.appendChild(head);
+        html.appendChild(body);
+        return { html, head, body };
+    }
+    static packageScripts() {
+        return __awaiter(this, void 0, void 0, function* () {
+            return yield Promise.all(Array.from(document.getElementsByTagName("script")).map((scr) => __awaiter(this, void 0, void 0, function* () {
+                let script = document.createElement("script");
+                script.type = "text/javascript";
+                script.textContent = yield fetch(scr.src).then(x => x.text());
+                return script;
+            })));
+        });
+    }
+    static packageStyles() {
+        return __awaiter(this, void 0, void 0, function* () {
+            return yield Promise.all(Array.from(document.getElementsByTagName("link")).filter(x => x.rel === "stylesheet").map((stylesheet) => __awaiter(this, void 0, void 0, function* () {
+                let style = document.createElement("style");
+                style.type = "text/css";
+                style.textContent = yield fetch(stylesheet.href).then(x => x.text());
+                return style;
+            })));
+        });
+    }
+    static updateStatus(message) {
+        return __awaiter(this, void 0, void 0, function* () {
+            document.getElementById("lblStatus").textContent = message;
+            yield wait(200);
         });
     }
 }
+Cryptify.DEFAULT_DOWNLOAD_FILENAME = "decryptedfile";
 //# sourceMappingURL=Cryptify.js.map

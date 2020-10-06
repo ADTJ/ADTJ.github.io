@@ -1,7 +1,18 @@
-#btnEncrypt, #btnDecrypt {
-    display: none;
+html {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 input[type=file] {
     display: none;
+}
+
+.question {
+    font-weight: bold;
+}
+.answer li {
+    font-style: italic;
+}
+
+#faq {
+    margin-top: 75px;
 }
